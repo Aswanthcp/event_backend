@@ -186,13 +186,12 @@ def getEventTypes(request):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    
+
 
 @api_view(["GET"])
 def getEventCategory(request):
     if request.method == "GET":
-        type_list = EventType.objects.all()[:3]  
+        type_list = EventType.objects.all()[:3]
         serializer = EventTypeSerializerListing(type_list, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -1002,10 +1001,8 @@ def user_item_Booking(request):
         item = Item.objects.filter(name__iexact=item_name).first()
         user = MyUser.objects.filter(username=user_username).first()
 
-        print(item, user)
-
-        if not item or not user:
-            return Response("Invalid item or user", status=status.HTTP_400_BAD_REQUEST)
+        if not item or not user or not  quantity or not selected_date_str:
+            return Response("Input cannot be empty", status=status.HTTP_400_BAD_REQUEST)
 
         try:
             selected_date = make_aware(
@@ -1013,7 +1010,23 @@ def user_item_Booking(request):
             ).date()
             date_bookto = selected_date + timedelta(days=3)
         except ValueError:
+            print("dateformat error")
             return Response("Invalid date format", status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the event booking already exists
+        existing_booking = ItemUserRent.objects.filter(
+            user=user,
+            item=item,
+            date_booked=selected_date,
+            date_bookedto=date_bookto,
+            quantity=quantity,
+        ).first()
+        existing_bookingondate = ItemUserRent.objects.filter(
+            date_booked=selected_date,
+            date_bookedto=date_bookto,
+        ).first()
+        if existing_booking or existing_bookingondate:
+            return Response("Item already booked", status=status.HTTP_400_BAD_REQUEST)
 
         item_user_rent = ItemUserRent.objects.create(
             user=user,
@@ -1449,7 +1462,6 @@ def unapprovedEventBookingListbyUserId(request, id):
             user_id=id, is_approved=False
         ).order_by("-id")
 
-        print(item_bookings, "0000000000000000000000000")
 
         page = request.GET.get("page", 1)
         paginator = Paginator(item_bookings, 4)  # Number of items per page
